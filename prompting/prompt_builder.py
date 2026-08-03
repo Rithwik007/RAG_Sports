@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 import sys
 sys.path.append('.')
+from config import settings
 from rag_logging.logger import setup_logger
 
 
@@ -19,22 +20,32 @@ class PromptBuilder:
     ) -> str:
         """Build a RAG prompt with question and retrieved context"""
         
+        is_list_query = any(keyword in question.lower() for keyword in ["list", "names", "all", "who are", "which"])
+        relevant_chunks = retrieved_chunks[:5] if is_list_query else retrieved_chunks[:3]
+        relevant_chunks = self._deduplicate_chunks(relevant_chunks)
+        
         # Build context section
         context_sections = []
-        for idx, chunk in enumerate(retrieved_chunks):
+        for idx, chunk in enumerate(relevant_chunks):
             source = chunk.get("metadata", {}).get("document_name", "Unknown")
             page = chunk.get("metadata", {}).get("page_number", "Unknown")
             score = chunk.get("score", 0)
+            content = self._truncate_text(chunk.get("content", ""), settings.context_char_limit if not is_list_query else settings.context_char_limit + 600)
             
             context_section = f"""
 Context Chunk {idx + 1} (Source: {source}, Page: {page}, Score: {score:.2f}):
-{chunk.get("content", "")}
+{content}
 """
             context_sections.append(context_section)
         
         context_text = "\n".join(context_sections)
         
         # Build the full prompt
+        if is_list_query:
+            instruction_suffix = "- Return the answer as a simple bullet list of unique names only, using the provided context."
+        else:
+            instruction_suffix = "- Be concise but thorough."
+
         prompt = f"""You are an Enterprise Knowledge Assistant. Answer the user's question based ONLY on the provided context from the company's knowledge base.
 
 QUESTION:
@@ -48,7 +59,7 @@ INSTRUCTIONS:
 - If the context doesn't contain enough information to answer the question, say "I don't have enough information to answer this question."
 - Do not use any outside knowledge or make assumptions beyond what's in the context.
 - When answering, cite the source document and page number when possible.
-- Be concise but thorough.
+{instruction_suffix}
 - If the context contains conflicting information, mention it.
 
 ANSWER:
@@ -56,15 +67,34 @@ ANSWER:
         
         # Log the prompt structure
         self.logger.info(
-            f"Built RAG prompt with {len(retrieved_chunks)} context chunks",
+            f"Built RAG prompt with {len(relevant_chunks)} context chunks",
             extra={"extra_data": {
                 "question": question,
-                "num_context_chunks": len(retrieved_chunks),
-                "context_sources": [c.get("metadata", {}).get("document_name") for c in retrieved_chunks]
+                "num_context_chunks": len(relevant_chunks),
+                "context_sources": [c.get("metadata", {}).get("document_name") for c in relevant_chunks]
             }}
         )
         
         return prompt
+
+    def _truncate_text(self, text: str, max_chars: int) -> str:
+        """Trim long text while preserving the most relevant prefix."""
+        if len(text) <= max_chars:
+            return text
+        return text[:max_chars].rstrip() + "..."
+
+    def _deduplicate_chunks(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove repeated rows that point to the same underlying content."""
+        seen = set()
+        deduped = []
+        for chunk in chunks:
+            content = chunk.get("content", "")
+            key = content.strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(chunk)
+        return deduped
     
     # Returns a system-level prompt that sets the LLM's role as an enterprise knowledge assistant.
     def build_system_prompt(self) -> str:

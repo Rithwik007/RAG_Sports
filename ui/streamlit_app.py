@@ -144,10 +144,11 @@ def main():
                     trace = st.session_state.tracer.create_trace(prompt)
                     
                     # Retrieve relevant chunks
-                    retrieved_chunks = st.session_state.retriever.retrieve(prompt, top_k=5)
+                    top_k = st.session_state.get("top_k", 3)
+                    retrieved_chunks = st.session_state.retriever.retrieve(prompt, top_k=top_k)
                     
                     # Log retrieval span
-                    st.session_state.tracer.log_retrieval(trace, prompt, retrieved_chunks, top_k=5)
+                    st.session_state.tracer.log_retrieval(trace, prompt, retrieved_chunks, top_k=top_k)
                     
                     # Build prompt
                     rag_prompt = st.session_state.prompt_builder.build_rag_prompt(prompt, retrieved_chunks)
@@ -220,18 +221,21 @@ def main():
             st.warning("Knowledge base not loaded")
         
         st.header("Settings")
-        top_k = st.slider("Top K Results", min_value=1, max_value=10, value=5)
+        top_k = st.slider("Top K Results", min_value=1, max_value=6, value=3)
+        st.session_state.top_k = top_k
         if st.session_state.retriever:
             st.session_state.retriever.top_k = top_k
         
         st.header("Example Questions")
         example_questions = [
             "Which Indian Olympic players are included in the dataset?",
-            "What information is available about Indian cricketers?",
-            "Who are some notable Indian Olympic athletes in the data?",
-            "Which cricketers from the World Cricketers dataset are mentioned?",
-            "What sports records or achievements are covered in the knowledge base?",
-            "How do the Indian Olympic players data and cricket data compare?",
+            "Who are the Indian cricketers mentioned in the dataset?",
+            "List Australian cricketers from the dataset.",
+            "Which players are from India?",
+            "Who is Neeraj Chopra?",
+            "What sport is Shane Warne associated with?",
+            "Which players have the role of bowler?",
+            "What information is available about Indian Olympic players?",
         ]
         
         for question in example_questions:

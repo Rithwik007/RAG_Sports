@@ -33,11 +33,13 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=100, env="CHUNK_OVERLAP")
     
     # Retrieval
-    top_k: int = Field(default=5, env="TOP_K")
+    top_k: int = Field(default=3, env="TOP_K")
+    context_char_limit: int = Field(default=1200, env="CONTEXT_CHAR_LIMIT")
     
     # LLM
     llm_model: str = Field(default="llama-3.3-70b-versatile", env="LLM_MODEL")
-    llm_temperature: float = Field(default=0.7, env="LLM_TEMPERATURE")
+    llm_temperature: float = Field(default=0.2, env="LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=300, env="LLM_MAX_TOKENS")
     
     # Paths
     data_dir: str = Field(default="data")

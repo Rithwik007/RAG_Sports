@@ -45,7 +45,8 @@ class LLMGenerator:
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
-                temperature=settings.llm_temperature
+                temperature=settings.llm_temperature,
+                max_tokens=settings.llm_max_tokens
             )
             
             # Calculate latency
@@ -103,7 +104,8 @@ class LLMGenerator:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=settings.llm_temperature
+                temperature=settings.llm_temperature,
+                max_tokens=settings.llm_max_tokens
             )
             
             # Calculate latency

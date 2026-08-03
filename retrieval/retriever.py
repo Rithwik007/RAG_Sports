@@ -31,9 +31,11 @@ class Retriever:
         query_vector = self.embedder.embed_query(query)
         
         # Step 3: Search in vector database
+        query_terms = [term for term in query.lower().split() if len(term) > 2]
+        expanded_top_k = max(top_k * 2, 6)
         results = self.qdrant.search(
             query_vector=query_vector,
-            limit=top_k,
+            limit=expanded_top_k,
             filters=filters if filters else None
         )
         
@@ -41,11 +43,28 @@ class Retriever:
         if not results and filters:
             results = self.qdrant.search(
                 query_vector=query_vector,
-                limit=top_k,
+                limit=expanded_top_k,
                 filters=None
             )
+
+        if results and any(term in query.lower() for term in ["list", "who are", "which", "all", "names"]):
+            results = self._deduplicate_results(results)[:max(top_k + 2, 6)]
+        else:
+            results = self._deduplicate_results(results)[:top_k]
         
         return results
+
+    def _deduplicate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Remove duplicate chunks while preserving the highest-ranked items."""
+        seen = set()
+        deduped = []
+        for result in results:
+            key = (result.get("metadata", {}).get("document_name"), result.get("id"))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(result)
+        return deduped
     
     # Embeds the query and searches the vector DB using explicitly provided metadata filters.
     def retrieve_with_filters(
